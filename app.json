@@ -1,25 +1,60 @@
 {
   "expo": {
-    "name": "timestamp-pro",
+    "name": "TIMESTAMP PRO",
     "slug": "timestamp-pro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0F172A"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "TIMESTAMP PRO cần truy cập máy ảnh để chụp ảnh chấm công, công trình và ghi nhận hiện trường.",
+        "NSLocationWhenInUseUsageDescription": "TIMESTAMP PRO cần vị trí GPS để đóng dấu tọa độ và địa chỉ thực tế lên ảnh.",
+        "NSPhotoLibraryUsageDescription": "TIMESTAMP PRO cần quyền lưu ảnh có đóng dấu vào thư viện ảnh của bạn.",
+        "NSPhotoLibraryAddUsageDescription": "TIMESTAMP PRO cần quyền lưu ảnh chụp vào thư viện ảnh."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#0F172A",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cho phép TIMESTAMP PRO truy cập máy ảnh để chụp ảnh và đóng dấu thời gian thực tế."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Cho phép TIMESTAMP PRO lấy vị trí GPS để đóng dấu địa chỉ chính xác."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Cho phép lưu ảnh có đóng dấu vào thư viện thiết bị."
+        }
+      ],
+      "expo-sharing"
+    ]
   }
 }
