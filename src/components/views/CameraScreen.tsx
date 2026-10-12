@@ -115,7 +115,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       let rawImageUri = '';
 
       // 1. Capture from Web Camera or Native Camera
-      if (Platform.OS === 'web' && videoElRef.current) {
+      if (Platform.OS === 'web' && videoElRef.current && videoElRef.current.videoWidth > 0) {
         const video = videoElRef.current;
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 1920;
@@ -133,24 +133,9 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
         rawImageUri = photo.uri;
       }
 
-      // Fallback if camera stream wasn't ready
+      // Fallback if camera stream wasn't ready (e.g. laptop without camera or user denied permission)
       if (!rawImageUri) {
-        // Draw a simulated crisp construction canvas background
-        const canvas = document.createElement('canvas');
-        canvas.width = 1920;
-        canvas.height = 1080;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          const grad = ctx.createLinearGradient(0, 0, 1920, 1080);
-          grad.addColorStop(0, '#1E293B');
-          grad.addColorStop(1, '#0F172A');
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, 1920, 1080);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = 'bold 36px sans-serif';
-          ctx.fillText('TIMESTAMP PRO – ẢNH HIỆN TRƯỜNG THỰC TẾ', 100, 200);
-          rawImageUri = canvas.toDataURL('image/jpeg', 0.9);
-        }
+        rawImageUri = 'https://images.unsplash.com/photo-1541888946425-d0fbb1861593?q=80&w=1470&auto=format&fit=crop';
       }
 
       // 2. Fetch fresh GPS coordinates

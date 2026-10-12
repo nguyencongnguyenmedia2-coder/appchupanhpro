@@ -1,6 +1,6 @@
 // src/components/camera/CameraPreviewView.tsx
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 
 let CameraView: any = null;
 let useCameraPermissions: any = () => [null, () => {}];
@@ -11,7 +11,7 @@ if (Platform.OS !== 'web') {
     useCameraPermissions = cam.useCameraPermissions;
   } catch {}
 }
-import { MapPin, Grid, AlertCircle, RefreshCw } from 'lucide-react-native';
+import { MapPin, Grid, AlertCircle, Camera as CameraIcon, Upload, RefreshCw, Eye } from 'lucide-react-native';
 import { useCameraStore } from '../../stores/useCameraStore';
 import { LocationData } from '../../types/photo';
 
@@ -22,6 +22,10 @@ interface CameraPreviewViewProps {
   videoRef?: React.MutableRefObject<HTMLVideoElement | null>;
   cameraRef?: React.MutableRefObject<any>;
 }
+
+// Realistic crisp construction site preview for simulation/testing
+const SAMPLE_CONSTRUCTION_IMAGE =
+  'https://images.unsplash.com/photo-1541888946425-d0fbb1861593?q=80&w=1470&auto=format&fit=crop';
 
 export const CameraPreviewView: React.FC<CameraPreviewViewProps> = ({
   location,
@@ -42,49 +46,84 @@ export const CameraPreviewView: React.FC<CameraPreviewViewProps> = ({
   const [permission, requestPermission] = useCameraPermissions();
   const [webStreamReady, setWebStreamReady] = useState(false);
   const [webError, setWebError] = useState<string | null>(null);
+  const [isSimulatedMode, setIsSimulatedMode] = useState(false);
   const internalVideoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Setup Web camera stream using navigator.mediaDevices.getUserMedia for real camera on web
-  useEffect(() => {
+  // Setup Web camera stream using flexible multi-tier getUserMedia
+  const startWebCamera = async () => {
     if (Platform.OS !== 'web' || typeof navigator === 'undefined' || !navigator.mediaDevices) {
       return;
     }
 
+    setWebError(null);
     let stream: MediaStream | null = null;
-    const startWebCamera = async () => {
+
+    try {
+      // Tier 1: Try with preferred facingMode
       try {
-        setWebError(null);
-        const facingMode = cameraFacing === 'front' ? 'user' : 'environment';
+        const facing = cameraFacing === 'front' ? 'user' : { ideal: 'environment' };
         stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
+          video: { facingMode: facing },
           audio: false,
         });
+      } catch (err1) {
+        // Tier 2: Flexible fallback for PC/Laptop webcams without 'environment'
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
 
+      if (stream) {
         const targetEl = videoRef?.current || internalVideoRef.current;
         if (targetEl) {
           targetEl.srcObject = stream;
-          targetEl.play();
+          await targetEl.play().catch(() => {});
           setWebStreamReady(true);
+          setWebError(null);
+          setIsSimulatedMode(false);
           onCameraReady?.();
         }
-      } catch (err: any) {
-        console.warn('Web camera getUserMedia error:', err);
-        setWebError('Không thể mở Camera thực tế hoặc quyền truy cập bị từ chối.');
       }
-    };
+    } catch (err: any) {
+      console.warn('Web camera getUserMedia error:', err);
+      setWebError('Không thể mở Camera thực tế hoặc quyền truy cập bị từ chối.');
+    }
+  };
 
+  useEffect(() => {
     startWebCamera();
 
     return () => {
-      if (stream) {
+      const targetEl = videoRef?.current || internalVideoRef.current;
+      if (targetEl && targetEl.srcObject) {
+        const stream = targetEl.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [cameraFacing, videoRef, onCameraReady]);
+  }, [cameraFacing]);
+
+  // Handle file upload fallback
+  const handleFileUpload = (e: any) => {
+    const file = e.target?.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          // Put into video element as poster or display
+          const targetEl = videoRef?.current || internalVideoRef.current;
+          if (targetEl) {
+            targetEl.poster = result;
+          }
+          setIsSimulatedMode(true);
+          setWebError(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Handle native permission denied state
   if (Platform.OS !== 'web' && (!permission || !permission.granted)) {
@@ -104,31 +143,87 @@ export const CameraPreviewView: React.FC<CameraPreviewViewProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Real Camera preview */}
+      {/* Real Camera preview or Simulated Scene */}
       {Platform.OS === 'web' ? (
         <View style={styles.webCameraContainer}>
-          <video
-            ref={(el) => {
-              internalVideoRef.current = el;
-              if (videoRef) videoRef.current = el;
-            }}
-            autoPlay
-            playsInline
-            muted
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: cameraFacing === 'front' ? 'scaleX(-1)' : 'none',
-            }}
-          />
-          {webError && (
+          {isSimulatedMode ? (
+            <Image
+              source={{ uri: SAMPLE_CONSTRUCTION_IMAGE }}
+              style={styles.simulatedImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <video
+              ref={(el) => {
+                internalVideoRef.current = el;
+                if (videoRef) videoRef.current = el;
+              }}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: cameraFacing === 'front' ? 'scaleX(-1)' : 'none',
+              }}
+            />
+          )}
+
+          {/* Hidden File Input for browser photo selection */}
+          {Platform.OS === 'web' && (
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef as any}
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
+          )}
+
+          {/* If camera is blocked, display interactive options instead of a dead screen */}
+          {webError && !isSimulatedMode && (
             <View style={styles.webFallbackOverlay}>
-              <AlertCircle size={40} color="#F59E0B" />
+              <AlertCircle size={36} color="#F59E0B" />
               <Text style={styles.webFallbackText}>{webError}</Text>
               <Text style={styles.webFallbackSub}>
-                Vui lòng nhấn "Cho phép" khi trình duyệt yêu cầu quyền truy cập Camera.
+                Trình duyệt yêu cầu bạn cấp quyền Camera. Hãy nhấn nút bên dưới để mở lại hoặc chọn chế độ mẫu:
               </Text>
+
+              <View style={styles.actionButtonsCol}>
+                {/* 1. Request Permission Button */}
+                <TouchableOpacity
+                  style={styles.retryCameraBtn}
+                  onPress={startWebCamera}
+                  activeOpacity={0.8}
+                >
+                  <CameraIcon size={16} color="#FFFFFF" />
+                  <Text style={styles.retryCameraBtnText}>Bấm Để Cấp Quyền & Mở Camera</Text>
+                </TouchableOpacity>
+
+                {/* 2. Realistic Simulated Scene */}
+                <TouchableOpacity
+                  style={styles.simulatedSceneBtn}
+                  onPress={() => {
+                    setIsSimulatedMode(true);
+                    setWebError(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Eye size={16} color="#0F172A" />
+                  <Text style={styles.simulatedSceneBtnText}>Dùng Khung Hình Hiện Trường Thực Tế</Text>
+                </TouchableOpacity>
+
+                {/* 3. Pick photo from device */}
+                <TouchableOpacity
+                  style={styles.pickPhotoBtn}
+                  onPress={() => fileInputRef.current?.click()}
+                  activeOpacity={0.8}
+                >
+                  <Upload size={16} color="#CBD5E1" />
+                  <Text style={styles.pickPhotoBtnText}>Chọn Ảnh Từ Máy Tính / Điện Thoại</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </View>
@@ -208,25 +303,82 @@ const styles = StyleSheet.create({
     backgroundColor: '#090D16',
     position: 'relative',
   },
+  simulatedImage: {
+    width: '100%',
+    height: '100%',
+  },
   webFallbackOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 20,
+    zIndex: 10,
   },
   webFallbackText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: 10,
   },
   webFallbackSub: {
     color: '#94A3B8',
-    fontSize: 13,
+    fontSize: 12.5,
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 4,
+    marginBottom: 16,
+    maxWidth: 380,
+    lineHeight: 18,
+  },
+  actionButtonsCol: {
+    width: '100%',
+    maxWidth: 320,
+    gap: 10,
+  },
+  retryCameraBtn: {
+    backgroundColor: '#0284C7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryCameraBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginLeft: 6,
+  },
+  simulatedSceneBtn: {
+    backgroundColor: '#F59E0B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  simulatedSceneBtnText: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginLeft: 6,
+  },
+  pickPhotoBtn: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  pickPhotoBtnText: {
+    color: '#CBD5E1',
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   permissionContainer: {
     flex: 1,
